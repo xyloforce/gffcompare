@@ -50,7 +50,7 @@ gffcompare [-r <reference_mrna.gtf> [-R]] [-T] [-V] [-s <seq_path>]\n\
     repeats must be soft-masked (lower case) in order to be able to classify\n\
     transfrags as repeats\n\
 \n\
- -e when estimating exon level accuracy, this is the maximum range\n\
+  -e when estimating exon level accuracy, this is the maximum range\n\
     variation allowed for the free ends of terminal exons (default 100);\n\
 	this terminal exon restriction  applies to transcript level accuracy\n\
 	when --strict-match option is given\n\
@@ -58,7 +58,8 @@ gffcompare [-r <reference_mrna.gtf> [-R]] [-T] [-V] [-s <seq_path>]\n\
     for terminal exons; code '=' is only assigned if transcript ends are\n\
     within that range, otherwise code '~' is assigned just for intron chain\n\
     match (or significant overlap in the case of single exon transcripts)\n\
-\n\
+  -t set the proportion of repeated (lowercase actually) sequence to consider\n\
+    a transcript as repeated\n\
  -d max. distance (range) for grouping transcript start sites (100)\n\
  -V verbose processing mode (also shows GFF parser warnings)\n\
  -T do not generate .tmap and .refmap files for each input file\n\
@@ -195,7 +196,7 @@ void reportStats(FILE* fout, const char* setname, GSuperLocus& stotal,
        GSeqData* seqdata=NULL, GSeqData* refdata=NULL, int qfidx=-1);
 
 GSeqData* getQryData(int gid, GList<GSeqData>& qdata);
-void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs, int threshold);
+void trackGData(int qcount, GList< GSeqTrack >& gtracks, GStr& fbasename, FILE** ftr, FILE** frs, double threshold);
 
 #define FWCLOSE(fh) if (fh!=NULL && fh!=stdout) fclose(fh)
 #define FRCLOSE(fh) if (fh!=NULL && fh!=stdin) fclose(fh)
@@ -553,7 +554,7 @@ int main(int argc, char* argv[]) {
   gseqtracks.setSorted(&cmpGTrackByName);
   if (gtf_tracking_verbose && numQryFiles>1)
 	   GMessage("Tracking transcripts across %d query file(s)..\n", numQryFiles);
-  trackGData(numQryFiles, gseqtracks, outbasename, tfiles, rtfiles, atoi(args.getOpt('t')));
+  trackGData(numQryFiles, gseqtracks, outbasename, tfiles, rtfiles, std::stod(args.getOpt('t')));
   fprintf(f_out, "\n Total union super-loci across all input datasets: %d \n", xlocnum);
   if (numQryFiles>1) {
       fprintf(f_out, "  (%d multi-transcript, ~%.1f transcripts per locus)\n",
@@ -2104,7 +2105,7 @@ void reclass_XStrand(GList<GffObj>& mrnas, GList<GLocus>* rloci) {
      } //for each transfrag
 }
 
-void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaSeqGet *faseq, int threshold) {
+void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaSeqGet *faseq, double threshold) {
   int rlocidx=-1;
   for (int i=0;i<mrnas.Count();i++) {
     GffObj& m=*mrnas[i];
@@ -2121,8 +2122,10 @@ void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaS
             char* seq=m.getSpliced(faseq, false, &seqlen);
             //get percentage of lowercase
             int numlc=0;
+            double alt(seqlen);
             for (int c=0;c<seqlen;c++) if (seq[c]>='a') numlc++;
-            if (numlc/seqlen > threshold)
+//             std::cout << "Size of seqlen is:" << numlc/alt << std::endl;
+            if (numlc/alt > threshold)
                ((CTData*)m.uptr)->addOvl('r', NULL, numlc);
             GFREE(seq);
             }
@@ -2141,7 +2144,7 @@ void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaS
 
 //for a single genomic sequence, all qry data and ref data is stored in gtrack
 //check for all 'u' transfrags if they are repeat ('r') or polymerase run 'p' or anything else
-void umrnaReclass(int qcount,  GSeqTrack& gtrack, FILE** ftr, int threshold, GFaSeqGet* faseq=NULL) {
+void umrnaReclass(int qcount,  GSeqTrack& gtrack, FILE** ftr, double threshold, GFaSeqGet* faseq=NULL) {
     for (int q=0;q<qcount;q++) {
         if (gtrack.qdata[q]==NULL) continue; //no transcripts in this q dataset for this genomic seq
         //reclassLoci('+', gtrack.qdata[q]->loci_f, gtrack.rloci_f, faseq);
@@ -2509,7 +2512,7 @@ void printRefMap(FILE** frs, int qcount, GList<GLocus>* rloci) {
   }//ref locus loop
 }
 
-void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs, int threshold) {
+void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs, double threshold) {
   FILE* f_ltrack=NULL;
   FILE* f_itrack=NULL;
   FILE* f_ctrack=NULL;
