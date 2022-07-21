@@ -1,8 +1,8 @@
-#include "GArgs.h"
-#include "gff.h"
-#include "GStr.h"
-#include "GBitVec.h"
-#include "GIntervalTree.hh"
+#include "gclib/GArgs.h"
+#include "gclib/gff.h"
+#include "gclib/GStr.h"
+#include "gclib/GBitVec.h"
+#include "gclib/GIntervalTree.hh"
 
 #define VERSION "0.12.6"
 

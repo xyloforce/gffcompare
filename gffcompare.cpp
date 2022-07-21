@@ -1,4 +1,4 @@
-#include "GArgs.h"
+#include "gclib/GArgs.h"
 #include <ctype.h>
 #include <errno.h>
 #include "gtf_tracking.h"
@@ -195,7 +195,7 @@ void reportStats(FILE* fout, const char* setname, GSuperLocus& stotal,
        GSeqData* seqdata=NULL, GSeqData* refdata=NULL, int qfidx=-1);
 
 GSeqData* getQryData(int gid, GList<GSeqData>& qdata);
-void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs);
+void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs, int threshold);
 
 #define FWCLOSE(fh) if (fh!=NULL && fh!=stdout) fclose(fh)
 #define FRCLOSE(fh) if (fh!=NULL && fh!=stdin) fclose(fh)
@@ -256,7 +256,7 @@ int main(int argc, char* argv[]) {
 
   GArgs args(argc, argv,
 		  "version;help;debug;gids;gidnames;gnames;no-merge;strict-match;"
-		  "chr-stats;vACDSGEFJKLMNQTVRXhp:e:d:s:i:j:n:r:o:");
+		  "chr-stats;vACDSGEFJKLMNQTVRXhp:e:d:s:i:j:n:r:o:t:");
   int e;
   if ((e=args.isError())>0) {
     show_usage();
@@ -553,7 +553,7 @@ int main(int argc, char* argv[]) {
   gseqtracks.setSorted(&cmpGTrackByName);
   if (gtf_tracking_verbose && numQryFiles>1)
 	   GMessage("Tracking transcripts across %d query file(s)..\n", numQryFiles);
-  trackGData(numQryFiles, gseqtracks, outbasename, tfiles, rtfiles);
+  trackGData(numQryFiles, gseqtracks, outbasename, tfiles, rtfiles, atoi(args.getOpt('t')));
   fprintf(f_out, "\n Total union super-loci across all input datasets: %d \n", xlocnum);
   if (numQryFiles>1) {
       fprintf(f_out, "  (%d multi-transcript, ~%.1f transcripts per locus)\n",
@@ -2104,7 +2104,7 @@ void reclass_XStrand(GList<GffObj>& mrnas, GList<GLocus>* rloci) {
      } //for each transfrag
 }
 
-void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaSeqGet *faseq) {
+void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaSeqGet *faseq, int threshold) {
   int rlocidx=-1;
   for (int i=0;i<mrnas.Count();i++) {
     GffObj& m=*mrnas[i];
@@ -2122,7 +2122,7 @@ void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaS
             //get percentage of lowercase
             int numlc=0;
             for (int c=0;c<seqlen;c++) if (seq[c]>='a') numlc++;
-            if (numlc > seqlen/2)
+            if (numlc/seqlen > threshold)
                ((CTData*)m.uptr)->addOvl('r', NULL, numlc);
             GFREE(seq);
             }
@@ -2141,15 +2141,15 @@ void reclass_mRNAs(char strand, GList<GffObj>& mrnas, GList<GLocus>* rloci, GFaS
 
 //for a single genomic sequence, all qry data and ref data is stored in gtrack
 //check for all 'u' transfrags if they are repeat ('r') or polymerase run 'p' or anything else
-void umrnaReclass(int qcount,  GSeqTrack& gtrack, FILE** ftr, GFaSeqGet* faseq=NULL) {
+void umrnaReclass(int qcount,  GSeqTrack& gtrack, FILE** ftr, int threshold, GFaSeqGet* faseq=NULL) {
     for (int q=0;q<qcount;q++) {
         if (gtrack.qdata[q]==NULL) continue; //no transcripts in this q dataset for this genomic seq
         //reclassLoci('+', gtrack.qdata[q]->loci_f, gtrack.rloci_f, faseq);
         //reclassLoci('-', gtrack.qdata[q]->loci_r, gtrack.rloci_r, faseq);
-        reclass_mRNAs('+', gtrack.qdata[q]->mrnas_f, gtrack.rloci_f, faseq);
-        reclass_mRNAs('-', gtrack.qdata[q]->mrnas_r, gtrack.rloci_r, faseq);
-        reclass_mRNAs('+', gtrack.qdata[q]->umrnas, gtrack.rloci_f, faseq);
-        reclass_mRNAs('-', gtrack.qdata[q]->umrnas, gtrack.rloci_r, faseq);
+        reclass_mRNAs('+', gtrack.qdata[q]->mrnas_f, gtrack.rloci_f, faseq, threshold);
+        reclass_mRNAs('-', gtrack.qdata[q]->mrnas_r, gtrack.rloci_r, faseq, threshold);
+        reclass_mRNAs('+', gtrack.qdata[q]->umrnas, gtrack.rloci_f, faseq, threshold);
+        reclass_mRNAs('-', gtrack.qdata[q]->umrnas, gtrack.rloci_r, faseq, threshold);
         //and also check for special cases with cross-strand overlaps:
         reclass_XStrand(gtrack.qdata[q]->mrnas_f, gtrack.rloci_r);
         reclass_XStrand(gtrack.qdata[q]->mrnas_r, gtrack.rloci_f);
@@ -2509,7 +2509,7 @@ void printRefMap(FILE** frs, int qcount, GList<GLocus>* rloci) {
   }//ref locus loop
 }
 
-void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs) {
+void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** ftr, FILE** frs, int threshold) {
   FILE* f_ltrack=NULL;
   FILE* f_itrack=NULL;
   FILE* f_ctrack=NULL;
@@ -2549,7 +2549,7 @@ void trackGData(int qcount, GList<GSeqTrack>& gtracks, GStr& fbasename, FILE** f
 
     GFaSeqGet *faseq=gfasta.fetch(gseqtrack.get_gseqid(), checkFasta);
 
-    umrnaReclass(qcount, gseqtrack, ftr, faseq);
+    umrnaReclass(qcount, gseqtrack, ftr, threshold, faseq);
 
     // print transcript tracking (ichain_tracking)
     //if (qcount>1)

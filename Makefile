@@ -63,6 +63,7 @@ all debug release static memcheck memdebug : ../gclib gffcompare trmap
 ${GCLIB}/gff.o  : ${GCLIB}/gff.h
 ./gtf_tracking.o : ./gtf_tracking.h
 ./gffcompare.o : ./gtf_tracking.h
+../GFastaIndex.o: ../gclib/GFastaIndex.h
 
 gffcompare: ${OBJS} ./gtf_tracking.o ./gffcompare.o
 	${LINKER} ${LDFLAGS} -o $@ ${filter-out %.a %.so, $^} ${LIBS}

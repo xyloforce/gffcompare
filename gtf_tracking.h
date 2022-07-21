@@ -9,9 +9,9 @@
 #include "gperftools/heap-profiler.h"
 #endif
 
-#include "gff.h"
-#include "GFaSeqGet.h"
-#include "GStr.h"
+#include "gclib/gff.h"
+#include "gclib/GFaSeqGet.h"
+#include "gclib/GStr.h"
 
 extern int numQryFiles;
 extern bool gtf_tracking_verbose;
